@@ -198,13 +198,13 @@ module.exports = class Application extends Emitter {
     // context独享增加state 属性，用于保存一次请求中所需要的其他信息
     context.state = {};
 
-    // 到这里 大致能看出来作者的设计思路 context对象主要有四个属属性
-    // ctx.req：原生的req对象
-    // ctx.res：原生的res对象
-    // ctx.request：koa自己封装的request对象
-    // ctx.response：koa自己封装的response对象
-    // 其中koa自己封装的和原生的最大的区别在于，koa自己封装的请求和响应对象的内容 不仅囊括原生的 还有一些其独有的东西
     return context; // 返回 context对象
+    // 到这里 大致能看出来作者的设计思路 context对象主要有四个属属性
+    // context.req：原生的req对象
+    // context.res：原生的res对象
+    // context.request：koa自己封装的request对象
+    // context.response：koa自己封装的response对象
+    // 其中koa自己封装的和原生的最大的区别在于，koa自己封装的请求和响应对象的内容 不仅囊括原生的 还有一些其独有的东西
   }
 
   /**

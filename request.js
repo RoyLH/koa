@@ -5,6 +5,8 @@
  * Module dependencies.
  */
 
+// request.js主要是对原生的 http 模块的 req 对象进行封装, 其实就是对 request 对象某些属性或方法通过重写 getter/setter 函数进行代理
+
 const URL = require('url').URL;
 const net = require('net');
 const contentType = require('content-type');
