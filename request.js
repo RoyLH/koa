@@ -1,20 +1,27 @@
 
 'use strict';
 
+// request.js主要是对原生的 http 模块的 req 对象进行封装
+// 其实就是对 request 对象某些属性或方法通过重写 getter/setter 函数进行代理
+
 /**
  * Module dependencies.
  */
 
-// request.js主要是对原生的 http 模块的 req 对象进行封装, 其实就是对 request 对象某些属性或方法通过重写 getter/setter 函数进行代理
-
 const URL = require('url').URL;
+// net模块
 const net = require('net');
+// 用于解析Content-Type
 const contentType = require('content-type');
 const stringify = require('url').format;
+// 解析url(带记忆)内部有一个fastparse 方法
 const parse = require('parseurl');
+// 用于处理query字符串
 const qs = require('querystring');
 const typeis = require('type-is');
+// 检测304之类的
 const fresh = require('fresh');
+// 获得对象指定的键值
 const only = require('only');
 
 /**
@@ -29,8 +36,21 @@ module.exports = {
    * @return {Object}
    * @api public
    */
+  // 我们最初的目的，我们要创建一个ctx对象，这个ctx对象下有4个主要的属性：
+  // ctx.req：原生的req对象
+  // ctx.res：原生的res对象
+  // ctx.request：koa自己封装的request对象
+  // ctx.response：koa自己封装的response对象
+  // 其中koa自己封装的和原生的最大的区别在于，koa自己封装的请求和响应对象的内容 不仅囊括原生的 还有一些其独有的东西
 
+  // 那么我们要怎么将原本ctx.req和ctx.res下的属性赋给koa自己创建的请求对象ctx.request和响应对象ctx.response呢？
+  // 这么多属性，一个一个for过去吗？显然这样操作太重了。
+  // 能不能想个办法当我们访问ctx.request.xx属性的时候其实就是访问ctx.req.xx属性呢？
   get header() {
+    // 在application.js中 request = context.request 下面的this实际上就是request 等价于context.request 即最终的ctx.request
+    // 当我们要访问ctx.request.header的时候 由下面的return this.req.headers; 可知实际是访问 ctx.request.req.headers
+    // application.js中 context.req = request.req = response.req = req; 所以ctx.request.req.headers 等价于 ctx.req.headers
+    // 这样就达到了 以ctx.req.headers的形式的形式 可以访问ctx.request.header
     return this.req.headers;
   },
 

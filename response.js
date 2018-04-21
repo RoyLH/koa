@@ -5,18 +5,37 @@
  * Module dependencies.
  */
 
+// 创建和解析Content-Disposition头部信息
 const contentDisposition = require('content-disposition');
+// 在stream中注入错误信息
 const ensureErrorHandler = require('error-inject');
 const getType = require('mime-types').contentType;
+// 在http请求结束前完成或者有错误的时候执行回调
 const onFinish = require('on-finished');
 const isJSON = require('koa-is-json');
+// 用于HTML字符串转义
 const escape = require('escape-html');
+// typeis.is(mediaType, types)
+/**
+var mediaType = 'application/json'
+
+typeis.is(mediaType, ['json'])             // 'json'
+typeis.is(mediaType, ['html', 'json'])     // 'json'
+typeis.is(mediaType, ['application/*'])    // 'application/json'
+typeis.is(mediaType, ['application/json']) // 'application/json'
+
+typeis.is(mediaType, ['html']) // false
+*/
 const typeis = require('type-is').is;
+// 被nodejs所支持的状态码
 const statuses = require('statuses');
 const destroy = require('destroy');
 const assert = require('assert');
+// 返回扩展名
 const extname = require('path').extname;
+// header 的 vary字段 后面 追加 val值。
 const vary = require('vary');
+// 从一个对象里面提取需要的属性
 const only = require('only');
 
 /**

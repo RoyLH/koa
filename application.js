@@ -1,28 +1,51 @@
 
 'use strict';
 
+// application.js 包含 koa应用程序 的构造以及启动一个服务器 koa主要的逻辑处理代码 整个koa的处理
+
 /**
  * Module dependencies.
  */
-// application.js 包含 app 的构造以及启动一个服务器
-
+// 判断是不是generator function
 const isGeneratorFunction = require('is-generator-function');
+// 设置debug 的`namespace`
 const debug = require('debug')('koa:application');
+// 执行回调当http request关闭结束或者有错误的时候
 const onFinished = require('on-finished');
+// 引入response
 const response = require('./response');
+// 重头戏 koa-compose
 const compose = require('koa-compose');
+// 判断body是否应该为JSON 注: string 假值或者为stream或者buffer的时候返回false
 const isJSON = require('koa-is-json');
 const context = require('./context');
 const request = require('./request');
+// 下面只用了empty方法
+// statuses是一个对象 empty属性
+// status.empty = {
+//   204: true,
+//   205: true,
+//   304: true
+// }
 const statuses = require('statuses');
+// 获取设置http(s)cookie的模块
 const Cookies = require('cookies');
+// http accepts
+// Accept 请求头用来告知客户端可以处理的内容类型，这种内容类型用MIME类型来表示
 const accepts = require('accepts');
+// node.js 事件机制
 const Emitter = require('events');
+// node.js 断言库
 const assert = require('assert');
+// stream模块
 const Stream = require('stream');
+// http模块
 const http = require('http');
+// 返回对象的指定键值
 const only = require('only');
+// 将基于koa生成器的中间件转换为基于promise的中间件
 const convert = require('koa-convert');
+// 给出一些信息(表示已经弃用)
 const deprecate = require('depd')('koa');
 
 /**
@@ -42,7 +65,7 @@ module.exports = class Application extends Emitter {
     super();
 
     this.proxy = false;
-    this.middleware = []; // 中间件函数数组
+    this.middleware = [];
     this.subdomainOffset = 2;
     this.env = process.env.NODE_ENV || 'development';
     this.context = Object.create(context);
