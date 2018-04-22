@@ -50,7 +50,7 @@ module.exports = {
     // 在application.js中 request = context.request 下面的this实际上就是request 等价于context.request 即最终的ctx.request
     // 当我们要访问ctx.request.header的时候 由下面的return this.req.headers; 可知实际是访问 ctx.request.req.headers
     // application.js中 context.req = request.req = response.req = req; 所以ctx.request.req.headers 等价于 ctx.req.headers
-    // 这样就达到了 以ctx.req.headers的形式的形式 可以访问ctx.request.header
+    // 这样就达到了 访问ctx.request.header 的时候 实际访问的是 ctx.req.headers
     return this.req.headers;
   },
 
@@ -70,7 +70,7 @@ module.exports = {
    * @return {Object}
    * @api public
    */
-
+  // header属性的别名 实际上ctx.request.header 和 ctx.request.headers是一样的 都是等效于访问ctx.req.headers 即原生req.headers属性
   get headers() {
     return this.req.headers;
   },
