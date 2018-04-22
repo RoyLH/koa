@@ -130,7 +130,7 @@ const proto = module.exports = {
     }
 
     // 触发事件
-    // delegate
+    // 与application.js中的 if (!this.listeners('error').length) this.on('error', this.onerror); 一句相呼应
     this.app.emit('error', err, this);
 
     // nothing we can do here other
@@ -143,13 +143,12 @@ const proto = module.exports = {
     //解构一下获得node.js原生res对象
     const { res } = this;
 
-    //兼容
     //首次清除所有的headers
     // first unset all headers
     if (typeof res.getHeaderNames === 'function') {
       res.getHeaderNames().forEach(name => res.removeHeader(name));
     } else {
-      res._headers = {}; // Node < 7.7
+      res._headers = {}; // Node < 7.7 //兼容
     }
     // 然后设置为错误的headers标识
     // then set those specified
@@ -163,7 +162,7 @@ const proto = module.exports = {
     // ENOENT support
     if ('ENOENT' == err.code) err.status = 404;
 
-    // 默认转换成500状态码
+    // 状态码不是数字 或者 不是 204 205 304中的任何一个 默认转换成500状态码
     // default to 500
     if ('number' != typeof err.status || !statuses[err.status]) err.status = 500;
 

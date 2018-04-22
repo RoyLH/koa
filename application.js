@@ -85,7 +85,7 @@ module.exports = class Application extends Emitter {
 
   listen(...args) { // 该listen方法 算是 node 原生 listen 方法的语法糖
     debug('listen');
-    // 根据我们基础知识, this.callback() 执行的结果肯定是一个函数(http.createServer 方法所需要的回调函数), 这个函数无非就是根据 req 获取信息，同时向 res 中写入数据而已。
+    // 根据我们基础知识, this.callback() 执行的结果肯定是一个函数(http.createServer 方法所需要的回调函数), 这个函数无非就是根据 req 获取信息，同时向 res 中写入数据而已, 形如 (req, res) => { ... };
     const server = http.createServer(this.callback());
     // 根据传入的参数信息 进行端口监听
     return server.listen(...args);
@@ -158,6 +158,7 @@ module.exports = class Application extends Emitter {
     const fn = compose(this.middleware); // 通过 koa-compose 模块将所有的中间件合并成一个中间件函数
 
     if (!this.listeners('error').length) this.on('error', this.onerror);
+    // events模块的listener方法进行错误监听
 
     const handleRequest = (req, res) => {  // 可以看到，callback 方法返回的 handleRequest 函数就是 http.createServer 方法所需要的回调函数
       const ctx = this.createContext(req, res); // 根据node.js原生的req, res对象生成一个ctx对象(也就是常说的上下文对象) 供中间件函数 fn 调用
