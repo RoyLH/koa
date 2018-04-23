@@ -47,10 +47,9 @@ module.exports = {
   // 这么多属性，一个一个for过去吗？显然这样操作太重了。
   // 能不能想个办法当我们访问ctx.request.xx属性的时候其实就是访问ctx.req.xx属性呢？
   get header() {
-    // 在application.js中 request = context.request 下面的this实际上就是request 等价于context.request 即最终的ctx.request
-    // 当我们要访问ctx.request.header的时候 由下面的return this.req.headers; 可知实际是访问 ctx.request.req.headers
-    // application.js中 context.req = request.req = response.req = req; 所以ctx.request.req.headers 等价于 ctx.req.headers
-    // 这样就达到了 访问ctx.request.header 的时候 实际访问的是 ctx.req.headers
+    // 结合application.js中 request = context.request 由上下文可知下面的this实际上就是指向context 即最终的ctx
+    // 当我们要访问ctx.request.header的时候
+    // 由下面的return this.req.headers; 可知实际是访问 ctx.req.headers
     return this.req.headers;
   },
 
