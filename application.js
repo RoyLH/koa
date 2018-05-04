@@ -6,54 +6,34 @@
 /**
  * Module dependencies.
  */
-// 判断是不是generator function
-const isGeneratorFunction = require('is-generator-function');
-// 设置debug 的`namespace`
-const debug = require('debug')('koa:application');
-// 执行回调当http request关闭结束或者有错误的时候
-const onFinished = require('on-finished');
-// 引入response
-const response = require('./response');
-// 重头戏 koa-compose
-const compose = require('koa-compose');
-// 判断body是否应该为JSON 注: string 假值或者为stream或者buffer的时候返回false
-const isJSON = require('koa-is-json');
+const isGeneratorFunction = require('is-generator-function'); // 判断是不是generator function
+const debug = require('debug')('koa:application'); // 设置debug 的`namespace`
+const onFinished = require('on-finished'); // 执行回调当http request关闭结束或者有错误的时候
+const response = require('./response'); // 引入response
+const compose = require('koa-compose'); // 重头戏 koa-compose
+const isJSON = require('koa-is-json'); // 判断body是否应该为JSON 注: string 假值或者为stream或者buffer的时候返回false
 const context = require('./context');
 const request = require('./request');
-// 下面只用了empty方法
-// statuses是一个对象 empty属性
-// status.empty = {
-//   204: true,
-//   205: true,
-//   304: true
-// }
-const statuses = require('statuses');
-// 获取设置http(s)cookie的模块
-const Cookies = require('cookies');
-// http accepts
-// Accept 请求头用来告知客户端可以处理的内容类型，这种内容类型用MIME类型来表示
-const accepts = require('accepts');
-// node.js 事件机制
-const Emitter = require('events');
-// node.js 断言库
-const assert = require('assert');
-// stream模块
-const Stream = require('stream');
-// http模块
-const http = require('http');
-// 返回对象的指定键值
-const only = require('only');
-// 将基于koa生成器的中间件转换为基于promise的中间件
-const convert = require('koa-convert');
-// 给出一些信息(表示已经弃用)
-const deprecate = require('depd')('koa');
+const statuses = require('statuses'); // 只用了empty方法 statuses是一个对象 empty属性 status.empty = { 204: true, 205: true, 304: true }
+const Cookies = require('cookies'); // 获取设置http(s)cookie的模块
+const accepts = require('accepts'); // http accepts Accept 请求头用来告知客户端可以处理的内容类型，这种内容类型用MIME类型来表示
+const Emitter = require('events'); // node.js 事件模块
+const assert = require('assert'); // node.js 断言库模块
+const Stream = require('stream'); // stream模块
+const http = require('http'); // http模块
+const only = require('only'); // 返回对象的指定键值
+const convert = require('koa-convert'); // 将基于koa生成器的中间件转换为基于promise的中间件
+const deprecate = require('depd')('koa'); // 给出一些信息(表示已经弃用)
 
 /**
  * Expose `Application` class.
  * Inherits from `Emitter.prototype`.
  */
-// const app = new Koa() 很明显 Koa 是一个构造函数/es6中的class(类)
-// Application 类继承了 nodejs 的 Events 类，从而可以监听以及触发事件
+// 常在应用程序中这样写:
+// const Koa = require('koa');
+// const app = new Koa();
+// 明显可见 Koa 是一个构造函数 / es6中的class(类) 也就是下面的Application类
+// 而Application 类继承了 nodejs 的 Events 类，从而可以监听以及触发事件
 module.exports = class Application extends Emitter {
   /**
    * Initialize a new `Application`.
