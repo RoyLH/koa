@@ -5,38 +5,29 @@
  * Module dependencies.
  */
 
-// 创建和解析Content-Disposition头部信息
-const contentDisposition = require('content-disposition');
-// 在stream中注入错误信息
-const ensureErrorHandler = require('error-inject');
-const getType = require('mime-types').contentType;
-// 在http请求结束前完成或者有错误的时候执行回调
-const onFinish = require('on-finished');
-const isJSON = require('koa-is-json');
-// 用于HTML字符串转义
-const escape = require('escape-html');
-// typeis.is(mediaType, types)
+const contentDisposition = require('content-disposition'); // 创建和解析Content-Disposition头部信息
+const ensureErrorHandler = require('error-inject'); // 在stream中注入错误信息
+const getType = require('cache-content-type');
+const onFinish = require('on-finished'); // 在http请求结束前完成或者有错误的时候执行回调
+const escape = require('escape-html'); // 用于HTML字符串转义
+const typeis = require('type-is').is;
 /**
 var mediaType = 'application/json'
-
 typeis.is(mediaType, ['json'])             // 'json'
 typeis.is(mediaType, ['html', 'json'])     // 'json'
 typeis.is(mediaType, ['application/*'])    // 'application/json'
 typeis.is(mediaType, ['application/json']) // 'application/json'
-
 typeis.is(mediaType, ['html']) // false
 */
-const typeis = require('type-is').is;
-// 被nodejs所支持的状态码
-const statuses = require('statuses');
+const statuses = require('statuses'); // 被nodejs所支持的状态码
 const destroy = require('destroy');
 const assert = require('assert');
-// 返回扩展名
 const extname = require('path').extname;
-// header 的 vary字段 后面 追加 val值。
-const vary = require('vary');
-// 从一个对象里面提取需要的属性
-const only = require('only');
+const vary = require('vary'); // header 的 vary字段 后面 追加 val值。
+const only = require('only'); // 从一个对象里面提取需要的属性
+const util = require('util');
+const encodeUrl = require('encodeurl');
+const Stream = require('stream');
 
 /**
  * Prototype.
@@ -52,7 +43,7 @@ module.exports = {
    */
 
   get socket() {
-    return this.ctx.req.socket;
+    return this.res.socket;
   },
 
   /**
@@ -66,7 +57,7 @@ module.exports = {
     const { res } = this;
     return typeof res.getHeaders === 'function'
       ? res.getHeaders()
-      : res._headers || {};  // Node < 7.7
+      : res._headers || {}; // Node < 7.7
   },
 
   /**
@@ -101,8 +92,8 @@ module.exports = {
   set status(code) {
     if (this.headerSent) return;
 
-    assert('number' == typeof code, 'status code must be a number');
-    assert(statuses[code], `invalid status code: ${code}`);
+    assert(Number.isInteger(code), 'status code must be a number');
+    assert(code >= 100 && code <= 999, `invalid status code: ${code}`);
     this._explicitStatus = true;
     this.res.statusCode = code;
     if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses[code];
@@ -166,7 +157,7 @@ module.exports = {
     if (!this._explicitStatus) this.status = 200;
 
     // set the content-type only if not yet set
-    const setType = !this.header['content-type'];
+    const setType = !this.has('Content-Type');
 
     // string
     if ('string' == typeof val) {
@@ -218,18 +209,15 @@ module.exports = {
    */
 
   get length() {
-    const len = this.header['content-length'];
-    const body = this.body;
-
-    if (null == len) {
-      if (!body) return;
-      if ('string' == typeof body) return Buffer.byteLength(body);
-      if (Buffer.isBuffer(body)) return body.length;
-      if (isJSON(body)) return Buffer.byteLength(JSON.stringify(body));
-      return;
+    if (this.has('Content-Length')) {
+      return parseInt(this.get('Content-Length'), 10) || 0;
     }
 
-    return ~~len;
+    const { body } = this;
+    if (!body || body instanceof Stream) return undefined;
+    if ('string' === typeof body) return Buffer.byteLength(body);
+    if (Buffer.isBuffer(body)) return body.length;
+    return Buffer.byteLength(JSON.stringify(body));
   },
 
   /**
@@ -278,7 +266,7 @@ module.exports = {
   redirect(url, alt) {
     // location
     if ('back' == url) url = this.ctx.get('Referrer') || alt || '/';
-    this.set('Location', url);
+    this.set('Location', encodeUrl(url));
 
     // status
     if (!statuses.redirect[this.status]) this.status = 302;
@@ -303,9 +291,9 @@ module.exports = {
    * @api public
    */
 
-  attachment(filename) {
+  attachment(filename, options) {
     if (filename) this.type = extname(filename);
-    this.set('Content-Disposition', contentDisposition(filename));
+    this.set('Content-Disposition', contentDisposition(filename, options));
   },
 
   /**
@@ -399,23 +387,21 @@ module.exports = {
   get type() {
     const type = this.get('Content-Type');
     if (!type) return '';
-    return type.split(';')[0];
+    return type.split(';', 1)[0];
   },
 
   /**
    * Check whether the response is one of the listed types.
    * Pretty much the same as `this.request.is()`.
    *
-   * @param {String|Array} types...
+   * @param {String|String[]} [type]
+   * @param {String[]} [types]
    * @return {String|false}
    * @api public
    */
 
-  is(types) {
-    const type = this.type;
-    if (!types) return type || false;
-    if (!Array.isArray(types)) types = [].slice.call(arguments);
-    return typeis(type, types);
+  is(type, ...types) {
+    return typeis(this.type, type, ...types);
   },
 
   /**
@@ -439,6 +425,29 @@ module.exports = {
   },
 
   /**
+   * Returns true if the header identified by name is currently set in the outgoing headers.
+   * The header name matching is case-insensitive.
+   *
+   * Examples:
+   *
+   *     this.has('Content-Type');
+   *     // => true
+   *
+   *     this.get('content-type');
+   *     // => true
+   *
+   * @param {String} field
+   * @return {boolean}
+   * @api public
+   */
+  has(field) {
+    return typeof this.res.hasHeader === 'function'
+      ? this.res.hasHeader(field)
+      // Node < 7.7
+      : field.toLowerCase() in this.headers;
+  },
+
+  /**
    * Set header `field` to `val`, or pass
    * an object of header fields.
    *
@@ -457,8 +466,8 @@ module.exports = {
     if (this.headerSent) return;
 
     if (2 == arguments.length) {
-      if (Array.isArray(val)) val = val.map(String);
-      else val = String(val);
+      if (Array.isArray(val)) val = val.map(v => typeof v === 'string' ? v : String(v));
+      else if (typeof val !== 'string') val = String(val);
       this.res.setHeader(field, val);
     } else {
       for (const key in field) {
@@ -519,7 +528,11 @@ module.exports = {
 
   get writable() {
     // can't write any more after response finished
-    if (this.res.finished) return false;
+    // response.writableEnded is available since Node > 12.9
+    // https://nodejs.org/api/http.html#http_response_writableended
+    // response.finished is undocumented feature of previous Node versions
+    // https://stackoverflow.com/questions/16254385/undocumented-response-finished-in-node-js
+    if (this.res.writableEnded || this.res.finished) return false;
 
     const socket = this.res.socket;
     // There are already pending outgoing res, but still writable
@@ -564,3 +577,13 @@ module.exports = {
     this.res.flushHeaders();
   }
 };
+
+/**
+ * Custom inspection implementation for newer Node.js versions.
+ *
+ * @return {Object}
+ * @api public
+ */
+if (util.inspect.custom) {
+  module.exports[util.inspect.custom] = module.exports.inspect;
+}

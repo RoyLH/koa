@@ -9,21 +9,33 @@
  */
 
 const URL = require('url').URL;
-// net模块
 const net = require('net');
-// 用于解析Content-Type
+const accepts = require('accepts');
 const contentType = require('content-type');
 const stringify = require('url').format;
-// 解析url(带记忆)内部有一个fastparse 方法
 const parse = require('parseurl');
-// 用于处理query字符串
 const qs = require('querystring');
 const typeis = require('type-is');
-// 检测304之类的
 const fresh = require('fresh');
-// 获得对象指定的键值
 const only = require('only');
+const util = require('util');
 
+const IP = Symbol('context#ip');
+
+// 我们最初的目的，我们要创建一个ctx对象，这个ctx对象下有4个主要的属性：
+// ctx.req：原生的req对象
+// ctx.res：原生的res对象
+// ctx.request：koa自己封装的request对象
+// ctx.response：koa自己封装的response对象
+// 其中koa自己封装的和原生的最大的区别在于，koa自己封装的请求和响应对象的内容 不仅囊括原生的 还有一些其独有的东西
+// 那么我们要怎么将原本ctx.req和ctx.res下的属性赋给koa自己创建的请求对象ctx.request和响应对象ctx.response呢？
+// 这么多属性，一个一个for过去吗？显然这样操作太重了。
+// 能不能想个办法当我们访问ctx.request.xx属性的时候其实就是访问ctx.req.xx属性呢？
+
+// 结合application.js中 request = context.request 由上下文可知下面的this实际上就是指向context 即最终的ctx
+// 当我们要访问ctx.request.header的时候
+// 由下面的return this.req.headers; 可知实际是访问 ctx.req.headers
+// 通过 set get 完成 属性的代理 改造 和 添加
 /**
  * Prototype.
  */
@@ -36,20 +48,8 @@ module.exports = {
    * @return {Object}
    * @api public
    */
-  // 我们最初的目的，我们要创建一个ctx对象，这个ctx对象下有4个主要的属性：
-  // ctx.req：原生的req对象
-  // ctx.res：原生的res对象
-  // ctx.request：koa自己封装的request对象
-  // ctx.response：koa自己封装的response对象
-  // 其中koa自己封装的和原生的最大的区别在于，koa自己封装的请求和响应对象的内容 不仅囊括原生的 还有一些其独有的东西
 
-  // 那么我们要怎么将原本ctx.req和ctx.res下的属性赋给koa自己创建的请求对象ctx.request和响应对象ctx.response呢？
-  // 这么多属性，一个一个for过去吗？显然这样操作太重了。
-  // 能不能想个办法当我们访问ctx.request.xx属性的时候其实就是访问ctx.req.xx属性呢？
   get header() {
-    // 结合application.js中 request = context.request 由上下文可知下面的this实际上就是指向context 即最终的ctx
-    // 当我们要访问ctx.request.header的时候
-    // 由下面的return this.req.headers; 可知实际是访问 ctx.req.headers
     return this.req.headers;
   },
 
@@ -69,7 +69,7 @@ module.exports = {
    * @return {Object}
    * @api public
    */
-  // header属性的别名 实际上ctx.request.header 和 ctx.request.headers是一样的 都是等效于访问ctx.req.headers 即原生req.headers属性
+
   get headers() {
     return this.req.headers;
   },
@@ -247,7 +247,7 @@ module.exports = {
 
   /**
    * Set the search string. Same as
-   * response.querystring= but included for ubiquity.
+   * request.querystring= but included for ubiquity.
    *
    * @param {String} str
    * @api public
@@ -269,9 +269,12 @@ module.exports = {
   get host() {
     const proxy = this.app.proxy;
     let host = proxy && this.get('X-Forwarded-Host');
-    host = host || this.get('Host');
+    if (!host) {
+      if (this.req.httpVersionMajor >= 2) host = this.get(':authority');
+      if (!host) host = this.get('Host');
+    }
     if (!host) return '';
-    return host.split(/\s*,\s*/)[0];
+    return host.split(/\s*,\s*/, 1)[0];
   },
 
   /**
@@ -287,7 +290,7 @@ module.exports = {
     const host = this.host;
     if (!host) return '';
     if ('[' == host[0]) return this.URL.hostname || ''; // IPv6
-    return host.split(':')[0];
+    return host.split(':', 1)[0];
   },
 
   /**
@@ -299,12 +302,11 @@ module.exports = {
    */
 
   get URL() {
+    /* istanbul ignore else */
     if (!this.memoizedURL) {
-      const protocol = this.protocol;
-      const host = this.host;
       const originalUrl = this.originalUrl || ''; // avoid undefined in template string
       try {
-        this.memoizedURL = new URL(`${protocol}://${host}${originalUrl}`);
+        this.memoizedURL = new URL(`${this.origin}${originalUrl}`);
       } catch (err) {
         this.memoizedURL = Object.create(null);
       }
@@ -380,16 +382,12 @@ module.exports = {
    */
 
   get charset() {
-    let type = this.get('Content-Type');
-    if (!type) return '';
-
     try {
-      type = contentType.parse(type);
+      const { parameters } = contentType.parse(this.req);
+      return parameters.charset || '';
     } catch (e) {
       return '';
     }
-
-    return type.parameters.charset || '';
   },
 
   /**
@@ -418,11 +416,10 @@ module.exports = {
    */
 
   get protocol() {
-    const proxy = this.app.proxy;
     if (this.socket.encrypted) return 'https';
-    if (!proxy) return 'http';
-    const proto = this.get('X-Forwarded-Proto') || 'http';
-    return proto.split(/\s*,\s*/)[0];
+    if (!this.app.proxy) return 'http';
+    const proto = this.get('X-Forwarded-Proto');
+    return proto ? proto.split(/\s*,\s*/, 1)[0] : 'http';
   },
 
   /**
@@ -452,10 +449,34 @@ module.exports = {
 
   get ips() {
     const proxy = this.app.proxy;
-    const val = this.get('X-Forwarded-For');
-    return proxy && val
+    const val = this.get(this.app.proxyIpHeader);
+    let ips = proxy && val
       ? val.split(/\s*,\s*/)
       : [];
+    if (this.app.maxIpsCount > 0) {
+      ips = ips.slice(-this.app.maxIpsCount);
+    }
+    return ips;
+  },
+
+  /**
+   * Return request's remote address
+   * When `app.proxy` is `true`, parse
+   * the "X-Forwarded-For" ip address list and return the first one
+   *
+   * @return {String}
+   * @api public
+   */
+
+  get ip() {
+    if (!this[IP]) {
+      this[IP] = this.ips[0] || this.socket.remoteAddress || '';
+    }
+    return this[IP];
+  },
+
+  set ip(_ip) {
+    this[IP] = _ip;
   },
 
   /**
@@ -482,6 +503,27 @@ module.exports = {
       .split('.')
       .reverse()
       .slice(offset);
+  },
+
+  /**
+   * Get accept object.
+   * Lazily memoized.
+   *
+   * @return {Object}
+   * @api private
+   */
+  get accept() {
+    return this._accept || (this._accept = accepts(this.req));
+  },
+
+  /**
+   * Set accept object.
+   *
+   * @param {Object}
+   * @api private
+   */
+  set accept(obj) {
+    this._accept = obj;
   },
 
   /**
@@ -601,15 +643,14 @@ module.exports = {
    *
    *     this.is('html'); // => false
    *
-   * @param {String|Array} types...
+   * @param {String|String[]} [type]
+   * @param {String[]} [types]
    * @return {String|false|null}
    * @api public
    */
 
-  is(types) {
-    if (!types) return typeis(this.req);
-    if (!Array.isArray(types)) types = [].slice.call(arguments);
-    return typeis(this.req, types);
+  is(type, ...types) {
+    return typeis(this.req, type, ...types);
   },
 
   /**
@@ -641,7 +682,7 @@ module.exports = {
    *     // => "text/plain"
    *
    *     this.get('Something');
-   *     // => undefined
+   *     // => ''
    *
    * @param {String} field
    * @return {String}
@@ -685,3 +726,16 @@ module.exports = {
       'header'
     ]);
   }
+};
+
+/**
+ * Custom inspection implementation for newer Node.js versions.
+ *
+ * @return {Object}
+ * @api public
+ */
+
+/* istanbul ignore else */
+if (util.inspect.custom) {
+  module.exports[util.inspect.custom] = module.exports.inspect;
+}
