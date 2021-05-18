@@ -53,7 +53,7 @@ module.exports = class Application extends Emitter {
   constructor(options) {
     super();
     options = options || {};
-    this.proxy = options.proxy || false; // 信任proxt headers 默认不信任
+    this.proxy = options.proxy || false; // 信任proxy headers 默认不信任
     this.subdomainOffset = options.subdomainOffset || 2; // 子域偏移
     this.proxyIpHeader = options.proxyIpHeader || 'X-Forwarded-For'; // proxy ip header 默认设为 X-Forwarded-For
     this.maxIpsCount = options.maxIpsCount || 0; // 从代理ip标头读取的最大ips，默认为0（表示无穷大）
